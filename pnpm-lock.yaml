@@ -4,6 +4,10 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  sugarss: ^5.0.1
+  lodash: 4.17.23
+
 importers:
 
   .:
@@ -3176,7 +3180,7 @@ packages:
       sass: ^1.70.0
       sass-embedded: ^1.70.0
       stylus: '>=0.54.8'
-      sugarss: ^5.0.0
+      sugarss: ^5.0.1
       terser: ^5.16.0
       tsx: ^4.8.1
       yaml: ^2.4.2
@@ -3217,7 +3221,7 @@ packages:
       sass: ^1.70.0
       sass-embedded: ^1.70.0
       stylus: '>=0.54.8'
-      sugarss: ^5.0.0
+      sugarss: ^5.0.1
       terser: ^5.16.0
       tsx: ^4.8.1
       yaml: ^2.4.2
