@@ -13,7 +13,7 @@
     "postinstall": "mcp-use generate-types || true"
   },
   "dependencies": {
-    "mcp-use": "latest",
+    "mcp-use": "^1.29.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "tailwindcss": "^4.2.0",
