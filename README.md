@@ -8,7 +8,7 @@
   </a>
 </p>
 
-Showcase of `server.proxy()` — compose multiple MCP servers behind a single gateway with typed middleware, audit logging, and a live hub dashboard widget.
+V2 showcase of `server.proxy()` — compose multiple MCP servers behind a single gateway with typed middleware, audit logging, and a live hub dashboard View.
 
 ![Multi Server Hub Demo](./repo-assets/demo.gif)
 
@@ -38,7 +38,7 @@ Or open the [Inspector](https://inspector.manufact.com/inspector?autoConnect=htt
 - **Server proxy** — `server.proxy()` composes multiple upstream MCP servers
 - **Typed middleware** — intercept and transform requests between servers
 - **Audit logging** — track all tool calls across proxied servers
-- **Hub dashboard** — live widget showing connected servers and status
+- **Hub dashboard** — live MCP App View showing connected servers and status
 
 ## Tools
 
