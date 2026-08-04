@@ -1,130 +1,102 @@
-import { MCPServer, text, widget } from "mcp-use/server";
+import { MCPServer } from "mcp-use";
 import { z } from "zod";
 
 const server = new MCPServer({
   name: "multi-server-hub",
   title: "Multi-Server Hub",
-  version: "1.0.0",
-  description: "Server composition — aggregate multiple MCP servers with proxy()",
-  baseUrl: process.env.MCP_URL || "http://localhost:3000",
-  favicon: "favicon.ico",
-  icons: [
-    { src: "icon.svg", mimeType: "image/svg+xml", sizes: ["512x512"] },
-  ],
+  version: "2.0.0",
+  description: "Aggregate multiple MCP servers and audit tool calls.",
+  instructions: "Use hub-status to inspect configured upstream MCP servers and the recent audit log.",
+  icons: [{ src: "icon.svg", mimeType: "image/svg+xml", sizes: ["512x512"] }],
 });
 
-// ── HTTP Middleware: request logging ─────────────────────────────────────────
-
-server.use(async (c, next) => {
-  const start = Date.now();
-  console.log(`→ ${c.req.method} ${c.req.url}`);
+server.use("*", async (c, next) => {
+  const startedAt = Date.now();
   await next();
-  console.log(`← ${c.req.method} ${c.req.url} [${Date.now() - start}ms]`);
+  console.log(`${c.req.method} ${c.req.path} [${Date.now() - startedAt}ms]`);
 });
-
-// ── MCP Operation Middleware: audit log for all tool calls ──────────────────
 
 const auditLog: { tool: string; timestamp: string; duration: number }[] = [];
 
 server.use("mcp:tools/call", async (ctx, next) => {
-  const start = Date.now();
-  console.log(`🔧 Proxied tool call: ${ctx.params.name}`);
+  const startedAt = Date.now();
   const result = await next();
-  const duration = Date.now() - start;
-  auditLog.push({
-    tool: ctx.params.name,
-    timestamp: new Date().toISOString(),
-    duration,
-  });
-  console.log(`🔧 ${ctx.params.name} completed in ${duration}ms`);
+  const duration = Date.now() - startedAt;
+  auditLog.push({ tool: ctx.params.name, timestamp: new Date().toISOString(), duration });
+  console.log(`${ctx.params.name} completed in ${duration}ms`);
   return result;
 });
 
-// ── Server Proxy — the key feature ─────────────────────────────────────────
-// In production, replace these with real MCP server URLs.
-// For the demo, we provide example config that users can customize.
+const proxyConfig: Record<string, { url: string }> = {};
 
-const PROXY_CONFIG: Record<string, { url?: string; command?: string; args?: string[] }> = {
-  // Example: proxy a remote MCP server
-  // weather: { url: "https://weather-mcp.example.com/mcp" },
-  // Example: proxy a local stdio MCP server
-  // local: { command: "node", args: ["./local-server.js"] },
-};
-
-if (Object.keys(PROXY_CONFIG).length > 0) {
-  await server.proxy(PROXY_CONFIG);
+if (Object.keys(proxyConfig).length > 0) {
+  await server.proxy(proxyConfig);
 }
 
-// ── Local Tools (always available alongside proxied ones) ───────────────────
+const hubStatusOutput = z.object({
+  proxiedServers: z.array(z.object({ name: z.string(), type: z.string(), url: z.string() })),
+  auditLog: z.array(z.object({ tool: z.string(), timestamp: z.string(), duration: z.number() })),
+  totalCalls: z.number(),
+});
 
-server.tool(
+export const hubStatus = server.tool(
   {
     name: "hub-status",
-    description:
-      "Show the status of the multi-server hub, proxied servers, and audit log",
-    schema: z.object({}),
-    widget: {
-      name: "hub-dashboard",
-      invoking: "Loading status...",
-      invoked: "Status ready",
-    },
+    title: "Hub status",
+    description: "Show configured upstream servers and the latest audit entries.",
+    inputSchema: z.object({}),
+    outputSchema: hubStatusOutput,
+    view: { name: "hub-dashboard", description: "Multi-server status dashboard", prefersBorder: true },
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
   },
-  async () => {
-    const proxiedServers = Object.keys(PROXY_CONFIG);
-    return widget({
-      props: {
-        proxiedServers: proxiedServers.map((name) => ({
-          name,
-          type: PROXY_CONFIG[name].url ? "http" : "stdio",
-          url:
-            PROXY_CONFIG[name].url ??
-            `stdio:${PROXY_CONFIG[name].command}`,
-        })),
-        auditLog: auditLog.slice(-20),
-        totalCalls: auditLog.length,
-      },
-      output: text(
-        `Hub has ${proxiedServers.length} proxied servers and ${auditLog.length} logged calls`
-      ),
-    });
-  }
+  () => {
+    const data = {
+      proxiedServers: Object.entries(proxyConfig).map(([name, config]) => ({ name, type: "http", url: config.url })),
+      auditLog: auditLog.slice(-20),
+      totalCalls: auditLog.length,
+    };
+    return {
+      content: [{ type: "text", text: `Hub has ${data.proxiedServers.length} proxied servers and ${data.totalCalls} logged calls.` }],
+      structuredContent: data,
+    };
+  },
 );
 
-server.tool(
+const configOutput = z.object({ example: z.string() });
+
+export const hubConfigExample = server.tool(
   {
     name: "hub-config-example",
-    description: "Show example configuration for proxy servers",
-    schema: z.object({}),
+    title: "Hub configuration example",
+    description: "Show an example configuration for remote MCP servers.",
+    inputSchema: z.object({}),
+    outputSchema: configOutput,
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
   },
-  async () => {
-    return text(
-      `To proxy remote servers, edit PROXY_CONFIG in index.ts:\n\n` +
-        `// HTTP remote server:\n` +
-        `weather: { url: "https://weather-mcp.example.com/mcp" }\n\n` +
-        `// Stdio local server:\n` +
-        `calculator: { command: "node", args: ["./calc-server.js"] }\n\n` +
-        `Proxied tools are namespaced: weather_get-forecast, calculator_add, etc.`
-    );
-  }
+  () => {
+    const example = `const proxyConfig = {\n  weather: { url: "https://weather-mcp.example.com/mcp" },\n};\n\nawait server.proxy(proxyConfig);\n\nProxied tools are namespaced, for example weather_get-forecast.`;
+    return { content: [{ type: "text", text: example }], structuredContent: { example } };
+  },
 );
 
-server.tool(
+const auditOutput = z.object({ entries: z.array(z.object({ tool: z.string(), timestamp: z.string(), duration: z.number() })) });
+
+export const auditLogTool = server.tool(
   {
     name: "audit-log",
-    description: "View the audit log of recent tool calls through this hub",
-    schema: z.object({
-      limit: z.number().default(10).describe("Number of entries"),
-    }),
+    title: "Audit log",
+    description: "View recent tool calls through the hub.",
+    inputSchema: z.object({ limit: z.number().int().min(1).max(100).default(10).describe("Number of entries") }),
+    outputSchema: auditOutput,
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
   },
-  async ({ limit }) => {
+  ({ limit }) => {
     const entries = auditLog.slice(-limit);
-    if (entries.length === 0) return text("No tool calls recorded yet.");
-    return text(
-      entries
-        .map((e) => `${e.timestamp} | ${e.tool} | ${e.duration}ms`)
-        .join("\n")
-    );
-  }
+    return {
+      content: [{ type: "text", text: entries.length === 0 ? "No tool calls recorded yet." : entries.map((entry) => `${entry.timestamp} | ${entry.tool} | ${entry.duration}ms`).join("\n") }],
+      structuredContent: { entries },
+    };
+  },
 );
 
-server.listen().then(() => console.log("Multi-Server Hub running"));
+export default server;
