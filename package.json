@@ -2,6 +2,7 @@
   "name": "multi-server-hub",
   "type": "module",
   "version": "1.0.0",
+  "packageManager": "pnpm@11.13.1",
   "description": "Server composition — aggregate multiple MCP servers with proxy()",
   "license": "MIT",
   "main": "dist/index.js",
